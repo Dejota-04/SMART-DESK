@@ -132,3 +132,7 @@ FROM galpao_mangas
 GROUP BY TRUNC(timestamp_leitura, 'MI')
 ORDER BY TRUNC(timestamp_leitura, 'MI') ASC
 ```
+
+
+### Link do vídeo com protótipo
+https://youtu.be/I9dewidzvqE?si=sS2-XEXeYB4omLvk
