@@ -1,50 +1,134 @@
-# Projeto IoT com ESP32 Simulado no Wokwi
 
-![VSCode](https://img.shields.io/badge/Editor-VSCode-blue?logo=visualstudiocode)
-![PlatformIO](https://img.shields.io/badge/Build-PlatformIO-orange?logo=platformio)
-![Wokwi](https://img.shields.io/badge/Simulator-Wokwi-green?logo=cloud)
+# 👑 Rei dos Piratas: Dashboard IoT com Oracle APEX
 
-## Descrição  
-Este projeto demonstra como configurar um **ESP32** no **Visual Studio Code** utilizando a extensão **PlatformIO**, em conjunto com o **Wokwi Simulator**.  
-A simulação permite desenvolver e testar aplicações sem a necessidade de hardware físico.  
+**Documentação do Challenge Sprint - FIAP**
 
-## Adaptação  
-Este repositório é uma adaptação do seguinte tutorial: [link](https://docs.google.com/document/d/1y6IfbOT_rAimZx41tNBL9NlscoB1ObjgaPmy2g4UGO0/edit?usp=sharing)  
+**Grupo CATECH**
 
-## Funcionalidades  
-- **Configuração no VSCode**: Projeto estruturado com PlatformIO.  
-- **Integração com Wokwi**: Simulação online do ESP32.  
-- **Teste sem hardware físico**: Desenvolvimento totalmente em ambiente simulado.  
+## 👨‍💻 Integrantes
 
-⚠️ **Importante**: Para usar o Wokwi integrado ao VSCode e ao PlatformIO, é necessário habilitar a **licença Wokwi Pro**.  
+-   **Daniel Santana Corrêa Batista**  `[RM559622]`
 
-## Pré-requisitos  
-- [Visual Studio Code](https://code.visualstudio.com/)  
-- [PlatformIO IDE](https://platformio.org/install/ide?install=vscode)  
-- Conta no [Wokwi](https://wokwi.com/) com licença habilitada  
+-   **Wendell Nascimento Dourado**  `[RM559336]`
 
-## Instalação  
+-   **Jonas de Jesus Campos de Oliveira**  `[RM561144]`
 
-1. **Clone o repositório:**  
-   ```bash
-   https://github.com/prof-atritiack/2TDS-IOT
-   ```  
 
-2. **Abra no VSCode:**  
-   Navegue até a pasta do projeto e abra no Visual Studio Code.  
+----------
 
-3. **Dependências:**  
-   O PlatformIO instalará automaticamente as bibliotecas necessárias na primeira compilação.  
+## 1. 🎯 Tema e Problema
 
-## Uso  
+O projeto "Rei dos Piratas" é uma plataforma de e-commerce especialista em mangás. O problema a ser resolvido é criar uma arquitetura de software própria e moderna, superando as limitações de marketplaces genéricos e permitindo a integração de tecnologias inovadoras para a gestão da operação.
 
-1. **Compilação:**  
-   No PlatformIO, clique em **Build** para compilar o código.  
+## 2. 🛠️ Solução com Oracle APEX
 
-2. **Simulação:**  
-   - Inicie a simulação no Wokwi.  
-   - Acompanhe os logs pelo monitor serial do VSCode.  
+Para este desafio, a plataforma **Oracle APEX** foi a ferramenta central. Ela foi utilizada para construir o **painel administrativo interno (back-office)** da "Rei dos Piratas".
 
-3. **Dicas de simulação:**  
-   - O Wokwi simula em tempo real, mas a execução pode variar em desempenho.  
-   - Utilize o monitor serial para acompanhar o comportamento do ESP32.  
+Com o APEX, a equipe da loja pode realizar toda a gestão da operação:
+
+-   Cadastrar novos mangás;
+
+-   Controlar os níveis de estoque;
+
+-   Processar pedidos recebidos;
+
+-   Visualizar relatórios de vendas.
+
+
+A escolha pelo APEX foi estratégica para acelerar o desenvolvimento desta ferramenta interna crucial para o negócio.
+
+## 3. 💡 Aplicação de IoT para Controle de Qualidade
+
+Um dos maiores desafios do e-commerce de mangás é garantir a integridade dos produtos, que são de papel e sensíveis a variações de ambiente.
+
+Para solucionar isso, o projeto implementa um sistema de **Internet of Things (IoT) para Controle de Qualidade do Estoque**.
+
+-   **O que é:** Sensores de umidade e temperatura são instalados no local de estoque.
+
+-   **Como funciona:** Estes dispositivos enviam dados em tempo real para a nossa plataforma Oracle APEX.
+
+-   **O Resultado:** Caso os níveis saiam das condições ideais, o sistema dispara um **alerta automático** no painel administrativo. Isso previne perdas de produtos e garante que o cliente receba um item em perfeito estado, agregando valor à operação.
+
+
+**Dashboard de Monitoramento (Implementação IoT + APEX):**
+
+----------
+
+## 🏗️ Arquitetura Técnica da Solução IoT
+
+O fluxo de dados do monitoramento de estoque foi implementado da seguinte forma:
+
+1.  **ESP32 (Simulador Wokwi):** Um dispositivo simulado gera dados aleatórios de temperatura e umidade, simulando os sensores do galpão.
+
+2.  **MQTT (Broker):** O ESP32 publica os dados via MQTT (no broker `broker.hivemq.com`).
+
+3.  **Node-RED (Middleware):** Um fluxo no Node-RED se inscreve no tópico MQTT, recebe os dados JSON e os envia (via `POST`) para a API REST do APEX.
+
+4.  **Oracle APEX (API REST):** Um endpoint `POST` criado no ORDS (Oracle REST Data Services) recebe os dados do Node-RED e executa um script PL/SQL para inserir na tabela.
+
+5.  **Oracle APEX (Dashboard):** O painel administrativo, construído no App Builder, lê a tabela e exibe os dados nos gráficos e cards de alerta em tempo real.
+
+
+----------
+
+## ⚙️ Artefatos SQL (Oracle APEX)
+
+#### 1. Tabela de Destino
+
+SQL
+
+```
+CREATE TABLE galpao_mangas (
+    id NUMBER GENERATED BY DEFAULT AS IDENTITY,
+    timestamp_leitura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    temperatura NUMBER(5,2),
+    umidade NUMBER(5,2),
+    status_led VARCHAR2(10)
+);
+
+```
+
+#### 2. Handler da API `POST` (ORDS)
+
+SQL
+
+```
+INSERT INTO galpao_mangas (temperatura, umidade, status_led)
+VALUES (:temperatura, :umidade, :status_led)
+
+```
+
+#### 3. SQL dos Cards de Alerta (Ex: Temperatura)
+
+SQL
+
+```
+SELECT
+    'Temperatura Atual' as card_title,
+    TO_CHAR(temperatura, '99.99') || ' °C' as card_value,
+    CASE
+        WHEN temperatura > 25.0 THEN 'u-color-38' -- Vermelho
+        ELSE 'u-color-36' -- Verde
+    END as card_color,
+    CASE
+        WHEN temperatura > 25.0 THEN 'fa-exclamation-triangle'
+        ELSE 'fa-check-circle'
+    END as card_icon
+FROM galpao_mangas
+ORDER BY timestamp_leitura DESC
+FETCH FIRST 1 ROW ONLY
+
+```
+
+#### 4. SQL dos Gráficos de Linha (Agrupados)
+
+SQL
+
+```
+SELECT
+    TO_CHAR(TRUNC(timestamp_leitura, 'MI'), 'HH24:MI') as minuto_formatado,
+    AVG(temperatura) as temperatura_media
+FROM galpao_mangas
+GROUP BY TRUNC(timestamp_leitura, 'MI')
+ORDER BY TRUNC(timestamp_leitura, 'MI') ASC
+```
