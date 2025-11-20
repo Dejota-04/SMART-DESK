@@ -1,203 +1,188 @@
 /////////--------IOT--------FIAP------------///////////
-/////////--------SIMULAÇÃO GALPÃO MANGÁ------///////////
+/////////--------SMART DESK: HÍBRIDO--------///////////
+// 1. Envia HTTP para ThingSpeak
+// 2. Envia MQTT para Broker (para uso no Node-RED)
+// 3. Gera dados simulados (Ondas)
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ArduinoJson.h>
-// #include <DHTesp.h>
-#include <PubSubClient.h>
+#include <HTTPClient.h>   // Para ThingSpeak
+#include <PubSubClient.h> // Para MQTT (Node-RED)
+#include <ArduinoJson.h>  // Para formatar o JSON do MQTT bonito
+#include <math.h>         // Para simulação
 
+// ==========================================
+// CONFIGURAÇÕES DO THINGSPEAK
+// ==========================================
+String apiKey = "6X292TRG9LPRWZ4P";
+const char* serverName = "http://api.thingspeak.com/update";
 
-// Configurações de WiFi
-const char *SSID = "Wokwi-GUEST";
-const char *PASSWORD = "";
-
-// Configurações de MQTT
+// ==========================================
+// CONFIGURAÇÕES DO MQTT (Para Node-RED)
+// ==========================================
 const char *BROKER_MQTT = "broker.hivemq.com";
 const int BROKER_PORT = 1883;
-const char *ID_MQTT = "Catech_ESP32"; // Mantenha ou troque se precisar
-const char *TOPIC_SUBSCRIBE_LED = "fe20/iot/led";
-const char *TOPIC_PUBLISH_TEMP_HUMI = "catech_tempumi"; // Este é o tópico que o Node-RED vai ouvir
+const char *ID_MQTT = "SmartDesk_ESP32_Hybrid";
+const char *TOPIC_PUBLISH = "smartdesk/medicoes"; // Node-RED vai ouvir aqui
 
-// Configurações de Hardware
-// #define PIN_DHT 12
+// ==========================================
+// CONFIGURAÇÕES GERAIS
+// ==========================================
+const char *SSID = "Wokwi-GUEST";
+const char *PASSWORD = "";
 #define PIN_LED 15
-#define PUBLISH_DELAY 2000
+#define PUBLISH_DELAY 20000 // 20s (Respeitando limite do ThingSpeak)
 
-
-// Variáveis globais
+// Objetos Globais
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
-// DHTesp dht;
+
+// Variáveis de Controle
 unsigned long publishUpdate = 0;
-// TempAndHumidity sensorValues;
-const int TAMANHO = 200;
+int contadorTempoSentado = 0;
+float anguloSimulacao = 0.0;
 
-// Variáveis para lógica de "só publicar se mudar"
-float lastTemperature = 0.0; // Iniciando com 0 para forçar a primeira publicação
-float lastHumidity = 0.0;
-bool lastLedState = LOW;
-
-// Protótipos de funções
-// void updateSensorValues();
+// Protótipos
 void initWiFi();
 void initMQTT();
-void callbackMQTT(char *topic, byte *payload, unsigned int length);
 void reconnectMQTT();
-void reconnectWiFi();
-void checkWiFIAndMQTT();
+String getDeviceUUID();
 
-// void updateSensorValues() {
-//  sensorValues = dht.getTempAndHumidity();
-// }
+// --- Função para gerar ID Único ---
+String getDeviceUUID() {
+  uint64_t chipid = ESP.getEfuseMac();
+  char uuid[13];
+  snprintf(uuid, 13, "%04X%08X", (uint16_t)(chipid >> 32), (uint32_t)chipid);
+  return String(uuid);
+}
 
 void initWiFi() {
-  Serial.print("Conectando com a rede: ");
+  Serial.print("Conectando WiFi: ");
   Serial.println(SSID);
   WiFi.begin(SSID, PASSWORD);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Serial.print(".");
   }
-
-  Serial.println();
-  Serial.print("Conectado com sucesso: ");
-  Serial.println(SSID);
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
-
-  // Inicia o gerador de números aleatórios
-  randomSeed(analogRead(0));
+  Serial.println("\nWiFi Conectado!");
 }
 
 void initMQTT() {
   MQTT.setServer(BROKER_MQTT, BROKER_PORT);
-  MQTT.setCallback(callbackMQTT);
-}
-
-// Esta função continua igual, para você poder "controlar" o LED
-void callbackMQTT(char *topic, byte *payload, unsigned int length) {
-  String msg = String((char*)payload).substring(0, length);
-
-  JsonDocument json;
-  DeserializationError error = deserializeJson(json, msg);
-
-  if (error) {
-    Serial.println("Falha na deserialização do JSON.");
-    return;
-  }
-
-  if (json["led"].is<int>()) {
-    int valor = json["led"];
-    if (valor == 1) {
-      digitalWrite(PIN_LED, HIGH);
-      Serial.println("LED ligado via comando MQTT");
-    } else if (valor == 0) {
-      digitalWrite(PIN_LED, LOW);
-      Serial.println("LED desligado via comando MQTT");
-    }
-  }
 }
 
 void reconnectMQTT() {
   while (!MQTT.connected()) {
-    Serial.print("Tentando conectar com o Broker MQTT: ");
-    Serial.println(BROKER_MQTT);
-
+    Serial.print("Tentando MQTT (HiveMQ)... ");
     if (MQTT.connect(ID_MQTT)) {
-      Serial.println("Conectado ao broker MQTT!");
-      MQTT.subscribe(TOPIC_SUBSCRIBE_LED);
+      Serial.println("Conectado!");
     } else {
-      Serial.println("Falha na conexão com MQTT. Tentando novamente em 2 segundos.");
+      Serial.print("Falha. Rc=");
+      Serial.print(MQTT.state());
+      Serial.println(" Tentando em 2s...");
       delay(2000);
     }
   }
 }
 
-void checkWiFIAndMQTT() {
-  if (WiFi.status() != WL_CONNECTED) reconnectWiFi();
-  if (!MQTT.connected()) reconnectMQTT();
-}
-
-void reconnectWiFi(void)
-{
-  if (WiFi.status() == WL_CONNECTED)
-    return;
-
-  WiFi.begin(SSID, PASSWORD);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
-    Serial.print(".");
-  }
-
-  Serial.println();
-  Serial.print("Wifi conectado com sucesso");
-  Serial.print(SSID);
-  Serial.println("IP: ");
-  Serial.println(WiFi.localIP());
-}
-
 void setup() {
   Serial.begin(115200);
-
   pinMode(PIN_LED, OUTPUT);
-  digitalWrite(PIN_LED, LOW);
-
-  // dht.setup(PIN_DHT, DHTesp::DHT22);
-
   initWiFi();
   initMQTT();
 }
 
 void loop() {
-  checkWiFIAndMQTT();
-  MQTT.loop();
+  // Garante conexões
+  if (WiFi.status() != WL_CONNECTED) initWiFi();
+  if (!MQTT.connected()) reconnectMQTT();
 
+  MQTT.loop(); // Mantém a conexão MQTT viva
+
+  // Timer de 20 segundos
   if ((millis() - publishUpdate) >= PUBLISH_DELAY) {
     publishUpdate = millis();
 
-    // updateSensorValues(); // Substituído pela simulação abaixo
+    // ####### 1. SIMULAÇÃO DE DADOS (Sua lógica Gradual) #######
+    anguloSimulacao += 0.2;
 
-    // ####### INÍCIO DA SIMULAÇÃO #######
+    // Temperatura (19 a 29)
+    float temp = 24.0 + (5.0 * sin(anguloSimulacao));
 
-    // Simula Temperatura entre 18.00 e 26.00
-    // random(min, max_exclusivo)
-    float newTemperature = random(1800, 2601) / 100.0;
+    // Iluminação (50 a 650)
+    int lux = (int)(350.0 + (300.0 * sin(anguloSimulacao * 0.5)));
 
-    // Simula Umidade entre 40.00 e 60.00
-    float newHumidity = random(4000, 6001) / 100.0;
+    // Altura Tela (95 a 135)
+    float altura = 115.0 + (20.0 * sin(anguloSimulacao * 0.2));
 
-    bool currentLedState = digitalRead(PIN_LED);
+    // Tempo Sentado (0 a 90)
+    contadorTempoSentado += 20;
+    if (contadorTempoSentado > 90) contadorTempoSentado = 0;
 
-    // ####### FIM DA SIMULAÇÃO #######
+    // Postura
+    int posturaNumerica = 0;
+    String posturaTexto = "CORRETA"; // Para o JSON do MQTT
+    float ondaPostura = sin(anguloSimulacao * 0.3);
 
-
-    // Lógica para só publicar se o valor mudar (ótima prática)
-    bool changed =
-      newTemperature != lastTemperature ||
-      newHumidity != lastHumidity ||
-      currentLedState != lastLedState;
-
-    if (changed) {
-      lastTemperature = newTemperature;
-      lastHumidity = newHumidity;
-      lastLedState = currentLedState;
-
-      JsonDocument doc;
-      doc["temperatura"] = lastTemperature;
-      doc["umidade"] = lastHumidity;
-      doc["status_led"] = lastLedState ? "on" : "off";
-
-      char buffer[TAMANHO];
-      serializeJson(doc, buffer);
-      MQTT.publish(TOPIC_PUBLISH_TEMP_HUMI, buffer);
-
-      Serial.print("Publicado (mudou): ");
-      Serial.println(buffer);
+    if (ondaPostura > 0.3) {
+        posturaNumerica = 0;
+        posturaTexto = "CORRETA";
+    } else if (ondaPostura > -0.3) {
+        posturaNumerica = 1;
+        posturaTexto = "INCLINADA";
     } else {
-      Serial.println("Valores iguais, não publicando.");
+        posturaNumerica = 2;
+        posturaTexto = "CURVADO";
     }
+
+    String myUUID = getDeviceUUID();
+
+    // ####### 2. ENVIO VIA HTTP (Para o ThingSpeak) #######
+
+    WiFiClient client;
+    HTTPClient http;
+    http.begin(client, serverName);
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+    // Formato URL Encoded pro ThingSpeak
+    String httpRequestData = "api_key=" + apiKey +
+                             "&field1=" + String(temp) +
+                             "&field2=" + String(lux) +
+                             "&field3=" + String(contadorTempoSentado) +
+                             "&field4=" + String(altura) +
+                             "&field5=" + String(posturaNumerica) +
+                             "&field6=" + myUUID;
+
+    int httpResponseCode = http.POST(httpRequestData);
+
+    if (httpResponseCode > 0) {
+      Serial.print("ThingSpeak (HTTP): OK (");
+      Serial.print(httpResponseCode);
+      Serial.println(")");
+    } else {
+      Serial.print("ThingSpeak (HTTP): Erro ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+
+    // ####### 3. ENVIO VIA MQTT (Para o Node-RED) #######
+
+    // Cria um JSON bonito para o Node-RED ler fácil
+    JsonDocument doc;
+    doc["uuid"] = myUUID;
+    doc["temperatura"] = temp;
+    doc["iluminacao"] = lux;
+    doc["tempo_sentado"] = contadorTempoSentado;
+    doc["altura_tela"] = altura;
+    doc["postura_id"] = posturaNumerica;
+    doc["postura_desc"] = posturaTexto; // Manda o texto também pro Node-RED
+
+    char mqttBuffer[512];
+    serializeJson(doc, mqttBuffer);
+
+    MQTT.publish(TOPIC_PUBLISH, mqttBuffer);
+    Serial.println("Broker MQTT (JSON): Enviado!");
+    Serial.println(mqttBuffer);
+    Serial.println("----------------------------------");
   }
 }

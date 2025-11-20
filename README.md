@@ -1,5 +1,9 @@
 
-# 👑 Rei dos Piratas: Dashboard IoT com Oracle APEX
+Aqui está o arquivo `README.md` atualizado para o projeto **Smart Desk**, mantendo a formatação, os integrantes e adaptando a parte técnica para a solução híbrida (HTTP/MQTT) e as regras de negócio que definimos.
+
+----------
+
+# 🪑 Smart Desk: Monitoramento Ergonômico Inteligente
 
 **Documentação do Challenge Sprint - FIAP**
 
@@ -7,132 +11,159 @@
 
 ## 👨‍💻 Integrantes
 
--   **Daniel Santana Corrêa Batista**  `[RM559622]`
+-   **Daniel Santana Corrêa Batista** `[RM559622]`
 
--   **Wendell Nascimento Dourado**  `[RM559336]`
+-   **Wendell Nascimento Dourado** `[RM559336]`
 
--   **Jonas de Jesus Campos de Oliveira**  `[RM561144]`
+-   **Jonas de Jesus Campos de Oliveira** `[RM561144]`
 
 
 ----------
 
 ## 1. 🎯 Tema e Problema
 
-O projeto "Rei dos Piratas" é uma plataforma de e-commerce especialista em mangás. O problema a ser resolvido é criar uma arquitetura de software própria e moderna, superando as limitações de marketplaces genéricos e permitindo a integração de tecnologias inovadoras para a gestão da operação.
+Com o aumento do trabalho remoto e híbrido, a saúde ocupacional tornou-se uma preocupação crítica. Má postura, iluminação inadequada e longos períodos sentados contribuem para lesões por esforço repetitivo (LER), dores crônicas e baixa produtividade.
 
-## 2. 🛠️ Solução com Oracle APEX
+O projeto **"Smart Desk"** visa resolver esse problema criando uma estação de trabalho inteligente que monitora ativamente as condições do ambiente e o comportamento do usuário, fornecendo feedback em tempo real para prevenir problemas de saúde a longo prazo.
 
-Para este desafio, a plataforma **Oracle APEX** foi a ferramenta central. Ela foi utilizada para construir o **painel administrativo interno (back-office)** da "Rei dos Piratas".
+## 2. 🛠️ A Solução IoT
 
-Com o APEX, a equipe da loja pode realizar toda a gestão da operação:
+A solução consiste em um sistema embarcado utilizando **ESP32** e sensores simulados que captam métricas ambientais e comportamentais. O sistema opera de forma autônoma para verificar regras de ergonomia e envia os dados para nuvem para histórico e alertas.
 
--   Cadastrar novos mangás;
+### Regras de Negócio e Alertas
 
--   Controlar os níveis de estoque;
+O sistema processa as seguintes condições para gerar alertas:
 
--   Processar pedidos recebidos;
+**Regra**
 
--   Visualizar relatórios de vendas.
+**Condição Monitorada**
 
+**Título do Alerta**
 
-A escolha pelo APEX foi estratégica para acelerar o desenvolvimento desta ferramenta interna crucial para o negócio.
+**Grau de Severidade**
 
-## 3. 💡 Aplicação de IoT para Controle de Qualidade
+**1**
 
-Um dos maiores desafios do e-commerce de mangás é garantir a integridade dos produtos, que são de papel e sensíveis a variações de ambiente.
+Postura inadequada
 
-Para solucionar isso, o projeto implementa um sistema de **Internet of Things (IoT) para Controle de Qualidade do Estoque**.
+Postura Inadequada
 
--   **O que é:** Sensores de umidade e temperatura são instalados no local de estoque.
+🔴 ALTO
 
--   **Como funciona:** Estes dispositivos enviam dados em tempo real para a nossa plataforma Oracle APEX.
+**2**
 
--   **O Resultado:** Caso os níveis saiam das condições ideais, o sistema dispara um **alerta automático** no painel administrativo. Isso previne perdas de produtos e garante que o cliente receba um item em perfeito estado, agregando valor à operação.
+Tempo sentado ≥ 60 min
 
+Muito tempo sentado
 
-**Dashboard de Monitoramento (Implementação IoT + APEX):**
+🟡 MÉDIO
+
+**3**
+
+Luz < 300 lux
+
+Baixa iluminação
+
+🟡 MÉDIO
+
+**4**
+
+Temp < 20°C ou > 27°C
+
+Temperatura desconfortável
+
+🟠 BAIXO/ALTO
+
+**5**
+
+Tela fora de 100–130 cm
+
+Altura da tela incorreta
+
+🟡 MÉDIO
 
 ----------
 
-## 🏗️ Arquitetura Técnica da Solução IoT
+## 🏗️ Arquitetura Técnica da Solução
 
-O fluxo de dados do monitoramento de estoque foi implementado da seguinte forma:
+O projeto utiliza uma **Arquitetura Híbrida** para garantir redundância e flexibilidade na integração:
 
-1.  **ESP32 (Simulador Wokwi):** Um dispositivo simulado gera dados aleatórios de temperatura e umidade, simulando os sensores do galpão.
+1.  **ESP32 (Simulador Wokwi):**
 
-2.  **MQTT (Broker):** O ESP32 publica os dados via MQTT (no broker `broker.hivemq.com`).
+    -   Atua como o controlador central.
 
-3.  **Node-RED (Middleware):** Um fluxo no Node-RED se inscreve no tópico MQTT, recebe os dados JSON e os envia (via `POST`) para a API REST do APEX.
+    -   Gera dados simulados de forma **gradual (ondas senoidais)** para temperatura, luminosidade, altura e postura, permitindo uma visualização fluida nos gráficos.
 
-4.  **Oracle APEX (API REST):** Um endpoint `POST` criado no ORDS (Oracle REST Data Services) recebe os dados do Node-RED e executa um script PL/SQL para inserir na tabela.
+    -   Gera um **UUID único** baseado no MAC Address do chip para identificar a mesa.
 
-5.  **Oracle APEX (Dashboard):** O painel administrativo, construído no App Builder, lê a tabela e exibe os dados nos gráficos e cards de alerta em tempo real.
+2.  **Canal 1 - ThingSpeak (Via HTTP REST):**
+
+    -   O ESP32 envia dados a cada 20 segundos via requisição `POST` direta para a API do ThingSpeak.
+
+    -   Objetivo: Armazenamento histórico e visualização rápida em Dashboard (Gráficos).
+
+3.  **Canal 2 - Node-RED (Via MQTT):**
+
+    -   O ESP32 publica simultaneamente um payload JSON no tópico `smartdesk/medicoes` no broker `broker.hivemq.com`.
+
+    -   Objetivo: Integração com fluxos de automação no Node-RED para processamento de regras complexas e envio para outros endpoints/bancos de dados.
 
 
 ----------
 
-## ⚙️ Artefatos SQL (Oracle APEX)
+## ⚙️ Especificações de Dados
 
-#### 1. Tabela de Destino
+### 1. Mapeamento ThingSpeak (Canais)
 
-SQL
+Para reproduzir o dashboard, os campos foram configurados da seguinte maneira:
 
-```
-CREATE TABLE galpao_mangas (
-    id NUMBER GENERATED BY DEFAULT AS IDENTITY,
-    timestamp_leitura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    temperatura NUMBER(5,2),
-    umidade NUMBER(5,2),
-    status_led VARCHAR2(10)
-);
+-   **Field 1:** Temperatura (°C)
 
-```
+-   **Field 2:** Iluminação (Lux)
 
-#### 2. Handler da API `POST` (ORDS)
+-   **Field 3:** Tempo Sentado (min)
 
-SQL
+-   **Field 4:** Altura da Tela (cm)
 
-```
-INSERT INTO galpao_mangas (temperatura, umidade, status_led)
-VALUES (:temperatura, :umidade, :status_led)
+-   **Field 5:** Postura (0=Correta, 1=Inclinada, 2=Curvada)
 
-```
+-   **Field 6:** Device UUID
 
-#### 3. SQL dos Cards de Alerta (Ex: Temperatura)
 
-SQL
+### 2. Payload MQTT (JSON)
+
+O dado enviado para o Broker MQTT possui a seguinte estrutura para consumo no Node-RED:
+
+JSON
 
 ```
-SELECT
-    'Temperatura Atual' as card_title,
-    TO_CHAR(temperatura, '99.99') || ' °C' as card_value,
-    CASE
-        WHEN temperatura > 25.0 THEN 'u-color-38' -- Vermelho
-        ELSE 'u-color-36' -- Verde
-    END as card_color,
-    CASE
-        WHEN temperatura > 25.0 THEN 'fa-exclamation-triangle'
-        ELSE 'fa-check-circle'
-    END as card_icon
-FROM galpao_mangas
-ORDER BY timestamp_leitura DESC
-FETCH FIRST 1 ROW ONLY
+{
+  "uuid": "AC67B23C9910",
+  "temperatura": 24.5,
+  "iluminacao": 350,
+  "tempo_sentado": 40,
+  "altura_tela": 115.0,
+  "postura_id": 0,
+  "postura_desc": "CORRETA"
+}
 
 ```
 
-#### 4. SQL dos Gráficos de Linha (Agrupados)
+----------
 
-SQL
+## 🚀 Como Executar o Projeto
 
-```
-SELECT
-    TO_CHAR(TRUNC(timestamp_leitura, 'MI'), 'HH24:MI') as minuto_formatado,
-    AVG(temperatura) as temperatura_media
-FROM galpao_mangas
-GROUP BY TRUNC(timestamp_leitura, 'MI')
-ORDER BY TRUNC(timestamp_leitura, 'MI') ASC
-```
+1.  **Hardware/Simulação:** Carregar o código `main.cpp` no simulador Wokwi ou ESP32 físico.
+
+2.  **Configuração:** Ajustar as constantes `CHANNEL_ID` e `WRITE_API_KEY` do ThingSpeak no código.
+
+3.  **Monitoramento:**
+
+    -   Acessar o canal do ThingSpeak para ver os gráficos.
+
+    -   Conectar o Node-RED ao broker `broker.hivemq.com` no tópico `smartdesk/medicoes` para ver o fluxo de dados JSON.
 
 
 ### Link do vídeo com protótipo
-https://youtu.be/I9dewidzvqE?si=sS2-XEXeYB4omLvk
+
+_(Insira o link do seu vídeo novo aqui)_
