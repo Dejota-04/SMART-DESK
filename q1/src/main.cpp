@@ -1,15 +1,16 @@
-/////////--------IOT--------FIAP------------///////////
-/////////--------SMART DESK: HÍBRIDO--------///////////
-// 1. Envia HTTP para ThingSpeak
-// 2. Envia MQTT para Broker (para uso no Node-RED)
-// 3. Gera dados simulados (Ondas)
+/*
+  PROJETO: SMART DESK (HÍBRIDO) - VERSÃO FINAL
+  DISCIPLINA: IOT - FIAP
+  DESCRIÇÃO: Simulação de dados ergonômicos com envio via HTTP (ThingSpeak) e MQTT (Node-RED).
+  FIX: Implementação de ID MQTT Dinâmico para evitar desconexões no broker público.
+*/
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <HTTPClient.h>   // Para ThingSpeak
-#include <PubSubClient.h> // Para MQTT (Node-RED)
-#include <ArduinoJson.h>  // Para formatar o JSON do MQTT bonito
-#include <math.h>         // Para simulação
+#include <HTTPClient.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <math.h>
 
 // ==========================================
 // CONFIGURAÇÕES DO THINGSPEAK
@@ -22,11 +23,10 @@ const char* serverName = "http://api.thingspeak.com/update";
 // ==========================================
 const char *BROKER_MQTT = "broker.hivemq.com";
 const int BROKER_PORT = 1883;
-const char *ID_MQTT = "SmartDesk_ESP32_Hybrid";
-const char *TOPIC_PUBLISH = "smartdesk/medicoes"; // Node-RED vai ouvir aqui
+const char *TOPIC_PUBLISH = "smartdesk/medicoes";
 
 // ==========================================
-// CONFIGURAÇÕES GERAIS
+// CONFIGURAÇÕES GERAIS (Wokwi)
 // ==========================================
 const char *SSID = "Wokwi-GUEST";
 const char *PASSWORD = "";
@@ -42,13 +42,7 @@ unsigned long publishUpdate = 0;
 int contadorTempoSentado = 0;
 float anguloSimulacao = 0.0;
 
-// Protótipos
-void initWiFi();
-void initMQTT();
-void reconnectMQTT();
-String getDeviceUUID();
-
-// --- Função para gerar ID Único ---
+// --- Função para gerar ID Único (Baseado no MAC Address) ---
 String getDeviceUUID() {
   uint64_t chipid = ESP.getEfuseMac();
   char uuid[13];
@@ -73,9 +67,17 @@ void initMQTT() {
 
 void reconnectMQTT() {
   while (!MQTT.connected()) {
-    Serial.print("Tentando MQTT (HiveMQ)... ");
-    if (MQTT.connect(ID_MQTT)) {
-      Serial.println("Conectado!");
+    Serial.print("Tentando MQTT... ");
+
+    // --- FIX: ID DINÂMICO ---
+    // Gera um nome único tipo: "SmartDesk_A1B2C3D4"
+    // Isso evita que o Broker derrube a conexão por conflito de nomes
+    String clientId = "SmartDesk_" + getDeviceUUID();
+
+    if (MQTT.connect(clientId.c_str())) {
+      Serial.print("Conectado! (ID: ");
+      Serial.print(clientId);
+      Serial.println(")");
     } else {
       Serial.print("Falha. Rc=");
       Serial.print(MQTT.state());
@@ -103,25 +105,25 @@ void loop() {
   if ((millis() - publishUpdate) >= PUBLISH_DELAY) {
     publishUpdate = millis();
 
-    // ####### 1. SIMULAÇÃO DE DADOS (Sua lógica Gradual) #######
+    // ####### 1. SIMULAÇÃO DE DADOS #######
     anguloSimulacao += 0.2;
 
-    // Temperatura (19 a 29)
+    // Temperatura (Simula oscilação entre 19 e 29)
     float temp = 24.0 + (5.0 * sin(anguloSimulacao));
 
-    // Iluminação (50 a 650)
+    // Iluminação (Simula oscilação)
     int lux = (int)(350.0 + (300.0 * sin(anguloSimulacao * 0.5)));
 
-    // Altura Tela (95 a 135)
+    // Altura Tela (Simula ajuste de mesa)
     float altura = 115.0 + (20.0 * sin(anguloSimulacao * 0.2));
 
-    // Tempo Sentado (0 a 90)
+    // Tempo Sentado (Contador cíclico)
     contadorTempoSentado += 20;
     if (contadorTempoSentado > 90) contadorTempoSentado = 0;
 
-    // Postura
+    // Postura (Simulação baseada na onda)
     int posturaNumerica = 0;
-    String posturaTexto = "CORRETA"; // Para o JSON do MQTT
+    String posturaTexto = "CORRETA";
     float ondaPostura = sin(anguloSimulacao * 0.3);
 
     if (ondaPostura > 0.3) {
@@ -175,7 +177,7 @@ void loop() {
     doc["tempo_sentado"] = contadorTempoSentado;
     doc["altura_tela"] = altura;
     doc["postura_id"] = posturaNumerica;
-    doc["postura_desc"] = posturaTexto; // Manda o texto também pro Node-RED
+    doc["postura_desc"] = posturaTexto;
 
     char mqttBuffer[512];
     serializeJson(doc, mqttBuffer);

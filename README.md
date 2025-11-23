@@ -1,8 +1,3 @@
-
-Aqui está o arquivo `README.md` atualizado para o projeto **Smart Desk**, mantendo a formatação, os integrantes e adaptando a parte técnica para a solução híbrida (HTTP/MQTT) e as regras de negócio que definimos.
-
-----------
-
 # 🪑 Smart Desk: Monitoramento Ergonômico Inteligente
 
 **Documentação do Challenge Sprint - FIAP**
